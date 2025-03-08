@@ -14,7 +14,7 @@ interface CategoryCardProps {
   onContentChange: (id: string, content: string) => void;
   onGenerateWithAI: (categoryId: string, context: string) => void;
   isGenerating: boolean;
-  allCategories: Category[]; // Az összes kategória, hogy figyelembe lehessen venni őket
+  allCategories: Category[]; // All categories to consider
 }
 
 export function CategoryCard({ 
@@ -25,7 +25,7 @@ export function CategoryCard({
   isGenerating,
   allCategories 
 }: CategoryCardProps) {
-  // Gyűjtsük össze a többi, már kitöltött kategória tartalmát
+  // Collect content from other filled categories for context
   const getContextFromOtherCategories = () => {
     const filledCategories = allCategories
       .filter(cat => cat.id !== category.id && cat.content.trim() !== '')
@@ -34,9 +34,21 @@ export function CategoryCard({
     return filledCategories.join(", ");
   };
 
-  // Generate gomb kezelése - figyelembe veszi a többi kategóriát is
+  // Generate button handler - includes randomization instruction
   const handleGenerate = () => {
-    const context = getContextFromOtherCategories();
+    // Add timestamp to ensure different responses
+    const timestamp = new Date().toISOString();
+    const mainSubject = allCategories.find(cat => cat.id === 'subject')?.content || '';
+    
+    // Create context with main subject as priority, plus timestamp for randomization
+    let context = `Current timestamp: ${timestamp} (Ignore this, it's just to ensure a randomized response). `;
+    
+    if (mainSubject) {
+      context += `Main Subject: ${mainSubject}. `;
+    }
+    
+    context += getContextFromOtherCategories();
+    
     onGenerateWithAI(category.id, context);
   };
 

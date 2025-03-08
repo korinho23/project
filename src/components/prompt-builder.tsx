@@ -62,7 +62,7 @@ export function PromptBuilder() {
     };
   }, []);
 
-  // Ollama modellek lekérése
+  // Fetch Ollama models
   useEffect(() => {
     const fetchModels = async () => {
       try {
@@ -136,45 +136,59 @@ export function PromptBuilder() {
     
     const timestamp = new Date().toISOString();
     
-    if (currentPromptId) {
-      // Update existing prompt
-      const updatedPrompts = savedPrompts.map(p => 
-        p.id === currentPromptId ? {
-          ...p,
+    try {
+      // Always read the current state from localStorage to avoid stale data
+      const currentSavedPromptsStr = localStorage.getItem('savedPrompts');
+      const currentSavedPrompts = currentSavedPromptsStr ? JSON.parse(currentSavedPromptsStr) : [];
+      
+      let updatedPrompts;
+      
+      if (currentPromptId) {
+        // Update existing prompt
+        updatedPrompts = currentSavedPrompts.map((p: SavedPrompt) => 
+          p.id === currentPromptId ? {
+            ...p,
+            title: promptTitle,
+            prompt,
+            negativePrompt,
+            model: selectedModel,
+            categories: categoriesContent,
+            updatedAt: timestamp
+          } : p
+        );
+        
+        toast.success("Prompt updated successfully!");
+      } else {
+        // Create new prompt
+        const newPrompt: SavedPrompt = {
+          id: uuidv4(),
           title: promptTitle,
           prompt,
           negativePrompt,
           model: selectedModel,
           categories: categoriesContent,
+          createdAt: timestamp,
           updatedAt: timestamp
-        } : p
-      );
+        };
+        
+        updatedPrompts = [...currentSavedPrompts, newPrompt];
+        toast.success("Prompt saved successfully!");
+      }
       
-      setSavedPrompts(updatedPrompts);
+      // Update localStorage
       localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
-      toast.success("Prompt updated successfully!");
-    } else {
-      // Create new prompt
-      const newPrompt: SavedPrompt = {
-        id: uuidv4(),
-        title: promptTitle,
-        prompt,
-        negativePrompt,
-        model: selectedModel,
-        categories: categoriesContent,
-        createdAt: timestamp,
-        updatedAt: timestamp
-      };
       
-      const updatedPrompts = [...savedPrompts, newPrompt];
+      // Update local state
       setSavedPrompts(updatedPrompts);
-      localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
-      toast.success("Prompt saved successfully!");
+      
+      // Reset after save
+      setCurrentPromptId(null);
+      setPromptTitle("");
+      setIsEditingTitle(false);
+    } catch (error) {
+      console.error("Error saving prompt:", error);
+      toast.error("Failed to save prompt. Please try again.");
     }
-    
-    setCurrentPromptId(null);
-    setPromptTitle("");
-    setIsEditingTitle(false);
   };
 
   const loadPrompt = (promptId: string) => {
@@ -210,7 +224,7 @@ export function PromptBuilder() {
     updateCategoryContent('style', stylePrompt);
   };
 
-  // Modified AI prompt generation to consider context
+  // Modified AI prompt generation to consider context and ensure randomization
   const generateWithAI = async (categoryId: string, context: string) => {
     const category = categories.find(cat => cat.id === categoryId);
     if (!category) return;
@@ -218,23 +232,27 @@ export function PromptBuilder() {
     setIsGenerating(true);
     
     try {
-      // Az aktuális kategória tartalma
+      // Current category content
       const currentContent = category.content.trim();
       
-      // Prompt összeállítása, figyelembe véve a kontextust és az aktuális kategória tartalmát
-      let promptText = `Generate high-quality content for a Stable Diffusion prompt category: "${category.name}" (${category.description}). `;
+      // Add randomization instruction and timestamp to ensure different responses
+      const timestamp = new Date().toISOString();
       
-      // Ha van már tartalom a kategóriában, azt is figyelembe vesszük
+      // Build prompt with randomization instructions
+      let promptText = `Generate a completely unique and creative prompt section for Stable Diffusion category: "${category.name}" (${category.description}). `;
+      promptText += `Current timestamp (ignore this, it's for randomization): ${timestamp}. `;
+      
+      // If there's already content, include it
       if (currentContent) {
-        promptText += `Improve or expand upon this: "${currentContent}". `;
+        promptText += `Build upon or modify this existing content: "${currentContent}". `;
       }
       
-      // Ha van kontextus (más kategóriák tartalma), azt is figyelembe vesszük
+      // Include context if available
       if (context) {
         promptText += `Consider this context for other prompt sections: ${context}. `;
       }
       
-      promptText += `Make it detailed and descriptive in 10-15 words.`;
+      promptText += `Make it detailed and descriptive in 10-15 words. Provide a DIFFERENT response each time, even for identical inputs.`;
       
       const response = await fetch('http://localhost:3001/api/generate', {
         method: 'POST',
@@ -243,7 +261,11 @@ export function PromptBuilder() {
         },
         body: JSON.stringify({
           prompt: promptText,
-          model: selectedOllamaModel
+          model: selectedOllamaModel,
+          options: {
+            temperature: 0.8, // Higher temperature for more randomness
+            seed: Math.floor(Math.random() * 2147483647) // Random seed every time
+          }
         }),
       });
       
@@ -261,14 +283,18 @@ export function PromptBuilder() {
     }
   };
 
-  // Negatív prompt generálás
+  // Generate negative prompt with randomization
   const generateNegativePrompt = async () => {
     setIsGenerating(true);
     
     try {
       const basePrompt = buildPrompt();
+      // Add timestamp for randomization
+      const timestamp = new Date().toISOString();
+      
       const prompt = `Generate a comprehensive negative prompt for this Stable Diffusion prompt: "${basePrompt}". 
-        Include common negative terms to avoid artifacts and issues.`;
+        Current timestamp (ignore this, it's for randomization): ${timestamp}.
+        Include common negative terms to avoid artifacts and issues. Provide a DIFFERENT response even for identical inputs.`;
       
       const response = await fetch('http://localhost:3001/api/generate', {
         method: 'POST',
@@ -277,7 +303,11 @@ export function PromptBuilder() {
         },
         body: JSON.stringify({
           prompt,
-          model: selectedOllamaModel
+          model: selectedOllamaModel,
+          options: {
+            temperature: 0.8, // Higher temperature for more randomness
+            seed: Math.floor(Math.random() * 2147483647) // Random seed every time
+          }
         }),
       });
       

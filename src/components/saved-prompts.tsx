@@ -1,4 +1,4 @@
-// src/components/saved-prompts.tsx - Javított verzió a befagyás ellen
+// src/components/saved-prompts.tsx - Fixed version to prevent freezing
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -59,16 +59,27 @@ export function SavedPrompts() {
   };
 
   const deletePrompt = (id: string) => {
-    // Create a new array without the deleted prompt
-    const updatedPrompts = prompts.filter(p => p.id !== id);
-    
-    // Update state and localStorage
-    setPrompts(updatedPrompts);
-    localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
-    
-    // Close dialog and show success message
-    setDeletePromptId(null);
-    toast.success("Prompt deleted successfully!");
+    try {
+      // Read the latest data from localStorage
+      const savedPromptsData = localStorage.getItem('savedPrompts');
+      const currentPrompts = savedPromptsData ? JSON.parse(savedPromptsData) : [];
+      
+      // Create a new array without the deleted prompt
+      const updatedPrompts = currentPrompts.filter((p: SavedPrompt) => p.id !== id);
+      
+      // Update localStorage
+      localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
+      
+      // Update state
+      setPrompts(updatedPrompts);
+      
+      // Close dialog and show success message
+      setDeletePromptId(null);
+      toast.success("Prompt deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting prompt:", error);
+      toast.error("Failed to delete prompt. Please try again.");
+    }
   };
 
   const editPrompt = (id: string) => {
@@ -89,27 +100,36 @@ export function SavedPrompts() {
     if (!editingPrompt) return;
 
     try {
-      // Create a completely new array with the updated prompt
-      const updatedPrompts = prompts.map(p => 
-        p.id === editingPrompt.id ? {...editingPrompt} : {...p}
+      // Read the latest data from localStorage
+      const savedPromptsData = localStorage.getItem('savedPrompts');
+      const currentPrompts = savedPromptsData ? JSON.parse(savedPromptsData) : [];
+      
+      // Create a new array with the updated prompt
+      const updatedPrompts = currentPrompts.map((p: SavedPrompt) => 
+        p.id === editingPrompt.id ? {...editingPrompt} : p
       );
       
-      // Update state and localStorage
-      setPrompts(updatedPrompts);
+      // Update localStorage
       localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
+      
+      // Update state
+      setPrompts(updatedPrompts);
       
       // Close dialog and clear editing prompt
       setIsDialogOpen(false);
       setEditingPrompt(null);
       
       toast.success("Prompt updated successfully!");
+      
+      // Force reload prompts to ensure UI consistency
+      loadPrompts();
     } catch (error) {
       console.error("Error saving edited prompt:", error);
       toast.error("Failed to save changes. Please try again.");
     }
   };
 
-  // Import funkcióban a JSON kezelése
+  // Handle JSON file upload
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -120,10 +140,10 @@ export function SavedPrompts() {
         const content = e.target?.result as string;
         const parsed = JSON.parse(content);
         
-        // Ellenőrizzük, hogy tömb-e vagy egyetlen prompt objektum
+        // Check if it's an array or a single prompt object
         const promptsToImport = Array.isArray(parsed) ? parsed : [parsed];
         
-        // Ellenőrizzük, hogy a promptok megfelelő formátumúak-e
+        // Validate prompts
         const validPrompts = promptsToImport.filter(p => 
           p.id && p.title && p.prompt && p.model
         );
@@ -133,7 +153,7 @@ export function SavedPrompts() {
           return;
         }
         
-        // Minden prompthoz hozzáadjuk a hiányzó mezőket
+        // Normalize prompts with any missing fields
         const normalizedPrompts = validPrompts.map(p => ({
           id: p.id || Date.now().toString(),
           title: p.title || "Imported Prompt",
@@ -155,36 +175,62 @@ export function SavedPrompts() {
     reader.readAsText(file);
   };
 
-  // Import mentése
+  // Import prompts
   const saveImportedPrompts = () => {
-    const updatedPrompts = [...prompts, ...importedPrompts];
-    setPrompts(updatedPrompts);
-    localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
-    setIsImportDialogOpen(false);
-    setImportedPrompts([]);
-    toast.success(`${importedPrompts.length} prompt(s) imported successfully!`);
+    try {
+      // Read the latest data from localStorage
+      const savedPromptsData = localStorage.getItem('savedPrompts');
+      const currentPrompts = savedPromptsData ? JSON.parse(savedPromptsData) : [];
+      
+      // Combine current and imported prompts
+      const updatedPrompts = [...currentPrompts, ...importedPrompts];
+      
+      // Update localStorage
+      localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
+      
+      // Update state
+      setPrompts(updatedPrompts);
+      
+      // Reset import state
+      setIsImportDialogOpen(false);
+      setImportedPrompts([]);
+      
+      toast.success(`${importedPrompts.length} prompt(s) imported successfully!`);
+      
+      // Force reload prompts to ensure UI consistency
+      loadPrompts();
+    } catch (error) {
+      console.error("Error importing prompts:", error);
+      toast.error("Failed to import prompts. Please try again.");
+    }
   };
 
-  // Export funkció - minden prompt exportálása JSON fájlként
+  // Export function - export all prompts as JSON file
   const exportPrompts = () => {
     if (prompts.length === 0) {
       toast.error("No prompts to export");
       return;
     }
 
-    const dataStr = JSON.stringify(prompts, null, 2);
-    const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
-    
-    const exportFileDefaultName = `sd-prompts-${new Date().toISOString().slice(0, 10)}.json`;
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
-    
-    toast.success(`${prompts.length} prompt(s) exported successfully!`);
+    try {
+      const dataStr = JSON.stringify(prompts, null, 2);
+      const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
+      
+      const exportFileDefaultName = `sd-prompts-${new Date().toISOString().slice(0, 10)}.json`;
+      
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.click();
+      
+      toast.success(`${prompts.length} prompt(s) exported successfully!`);
+    } catch (error) {
+      console.error("Error exporting prompts:", error);
+      toast.error("Failed to export prompts. Please try again.");
+    }
   };
 
+  // Filter prompts based on search query
   const filteredPrompts = prompts.filter(prompt =>
     prompt.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     prompt.prompt.toLowerCase().includes(searchQuery.toLowerCase())
@@ -302,7 +348,11 @@ export function SavedPrompts() {
       {/* Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={(open) => {
         setIsDialogOpen(open);
-        if (!open) setEditingPrompt(null);
+        if (!open) {
+          setEditingPrompt(null);
+          // Force reload prompts to ensure UI consistency when dialog is closed
+          loadPrompts();
+        }
       }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -348,6 +398,8 @@ export function SavedPrompts() {
               onClick={() => {
                 setIsDialogOpen(false);
                 setEditingPrompt(null);
+                // Force reload prompts to ensure UI consistency
+                loadPrompts();
               }}
             >
               Cancel

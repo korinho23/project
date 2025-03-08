@@ -1,4 +1,4 @@
-// src/components/prompt-mixer.tsx - Teljes kód javított token értékekkel
+// src/components/prompt-mixer.tsx - Fixed version with token limit corrections
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,16 +34,16 @@ export function PromptMixer() {
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [savePromptTitle, setSavePromptTitle] = useState("");
 
-  // Inicializálás és elmentett promptok betöltése
+  // Initialize and load saved prompts
   useEffect(() => {
-    // Ellenőrizzük, hogy a localStorage-ban van-e savedPrompts
+    // Check if localStorage has savedPrompts
     const savedPromptsData = localStorage.getItem('savedPrompts');
     if (!savedPromptsData) {
-      // Ha nincs, akkor inicializáljuk egy üres tömbbel
+      // If not, initialize with an empty array
       localStorage.setItem('savedPrompts', JSON.stringify([]));
     }
     
-    // Betöltjük a mentett promptokat
+    // Load saved prompts
     try {
       const parsedPrompts = savedPromptsData ? JSON.parse(savedPromptsData) : [];
       setSavedPrompts(parsedPrompts);
@@ -54,7 +54,7 @@ export function PromptMixer() {
     }
   }, []);
 
-  // Ollama modellek lekérése
+  // Fetch Ollama models
   useEffect(() => {
     const fetchModels = async () => {
       try {
@@ -74,7 +74,7 @@ export function PromptMixer() {
     fetchModels();
   }, []);
 
-  // Kiválasztott promptok kezelése
+  // Handle prompt selection
   const togglePromptSelection = (promptId: string) => {
     setSelectedPromptIds(prev => 
       prev.includes(promptId)
@@ -83,13 +83,13 @@ export function PromptMixer() {
     );
   };
 
-  // Keresés a promptok között
+  // Search prompts
   const filteredPrompts = savedPrompts.filter(prompt =>
     prompt.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     prompt.prompt.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Promptok mixelése az Ollama segítségével
+  // Mix prompts with Ollama - with improved randomization
   const mixPrompts = async () => {
     if (selectedPromptIds.length === 0 && !customPrompt.trim()) {
       toast.error("Select at least one prompt or enter custom text");
@@ -99,18 +99,18 @@ export function PromptMixer() {
     setIsGenerating(true);
 
     try {
-      // Kiválasztott promptok összegyűjtése
+      // Gather selected prompts
       const selectedPromptTexts = selectedPromptIds.map(id => {
         const prompt = savedPrompts.find(p => p.id === id);
         return prompt ? prompt.prompt : "";
       }).filter(Boolean);
 
-      // Ha van egyéni prompt, azt is hozzáadjuk
+      // Add custom prompt if provided
       if (customPrompt.trim()) {
         selectedPromptTexts.push(customPrompt.trim());
       }
 
-      // Ha csak egy prompt van, nem kell mixelni
+      // If only one prompt, no need to mix
       if (selectedPromptTexts.length === 1) {
         setMixedPrompt(selectedPromptTexts[0]);
         toast.info("Only one prompt selected, no mixing needed");
@@ -118,14 +118,14 @@ export function PromptMixer() {
         return;
       }
 
-      // Ollama prompt összeállítása
-      const promptText = `I need you to combine and refine these Stable Diffusion prompts into a single coherent prompt:
+      // Build Ollama prompt with randomization instruction
+      const promptText = `I need you to combine and refine these Stable Diffusion prompts into a single coherent prompt. Create a creative and UNIQUE response each time this request is made, even if the source prompts are identical:
       
 ${selectedPromptTexts.map((text, i) => `Prompt ${i+1}: ${text}`).join('\n\n')}
 
-Create a single improved prompt that includes the best elements from all of these. Make sure the result is cohesive, well-structured, and effective for Stable Diffusion image generation. Focus on descriptive elements, style, composition, and quality enhancers. Your response should be unique and creative, even if asked to mix the same prompts multiple times.`;
+Create a single improved prompt that includes the best elements from all of these. Make sure the result is cohesive, well-structured, and effective for Stable Diffusion image generation. Focus on descriptive elements, style, composition, and quality enhancers. Your response should be unique and creative, different from previous generations even with the same inputs.`;
 
-      // API hívás az Ollamához
+      // API call to Ollama with randomization options
       const response = await fetch('http://localhost:3001/api/generate', {
         method: 'POST',
         headers: {
@@ -145,10 +145,10 @@ Create a single improved prompt that includes the best elements from all of thes
       const data = await response.json();
       
       if (data && data.response) {
-        // A válasz tisztítása: csak a prompt részt vesszük
+        // Clean response: only take the prompt part
         let cleanedResponse = data.response;
         
-        // Az "Improved Prompt:" vagy hasonló előtagok eltávolítása
+        // Remove "Improved Prompt:" or similar prefixes
         const promptMarkers = ["Improved Prompt:", "Combined Prompt:", "Final Prompt:", "Result:", "Mixed Prompt:"];
         
         for (const marker of promptMarkers) {
@@ -169,25 +169,25 @@ Create a single improved prompt that includes the best elements from all of thes
     }
   };
 
-  // Prompt másolása a vágólapra
+  // Copy prompt to clipboard
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Copied to clipboard!");
   };
 
-  // Mentési dialógus megnyitása
+  // Open save dialog
   const openSaveDialog = () => {
     if (!mixedPrompt.trim()) {
       toast.error("No prompt to save");
       return;
     }
     
-    // Alapértelmezett cím beállítása
+    // Set default title
     setSavePromptTitle(`Mixed Prompt ${new Date().toLocaleString()}`);
     setIsSaveDialogOpen(true);
   };
 
-  // Kevert prompt mentése - javított verzió
+  // Save mixed prompt - fixed version
   const saveMixedPrompt = () => {
     if (!mixedPrompt.trim()) {
       toast.error("No prompt to save");
@@ -201,9 +201,9 @@ Create a single improved prompt that includes the best elements from all of thes
 
     const timestamp = new Date().toISOString();
     
-    // Új prompt objektum létrehozása
+    // Create new prompt object
     const newPrompt: SavedPrompt = {
-      id: Date.now().toString(), // Egyedi azonosító a jelenlegi időbélyeg alapján
+      id: Date.now().toString(), // Unique ID based on current timestamp
       title: savePromptTitle,
       prompt: mixedPrompt,
       negativePrompt: "",
@@ -213,29 +213,24 @@ Create a single improved prompt that includes the best elements from all of thes
       updatedAt: timestamp
     };
     
-    console.log("Saving new prompt:", newPrompt);
-    console.log("Current saved prompts:", savedPrompts);
-    
-    // Olvassuk be újra a localStorage-ból a legfrissebb adatokat
+    // Read again from localStorage to get the most up-to-date data
     try {
       const currentSavedPromptsStr = localStorage.getItem('savedPrompts');
       const currentSavedPrompts = currentSavedPromptsStr ? JSON.parse(currentSavedPromptsStr) : [];
       
-      // Új prompt hozzáadása
+      // Add new prompt
       const updatedPrompts = [...currentSavedPrompts, newPrompt];
       
-      // Frissítsük a localStorage-t
+      // Update localStorage
       localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
       
-      // Frissítsük a state-et is
+      // Update state
       setSavedPrompts(updatedPrompts);
-      
-      console.log("Updated prompts saved to localStorage:", updatedPrompts.length);
       
       setIsSaveDialogOpen(false);
       toast.success("Mixed prompt saved successfully!");
       
-      // Az aktuális mentési cím törlése
+      // Clear save title
       setSavePromptTitle("");
     } catch (error) {
       console.error("Error saving prompt:", error);

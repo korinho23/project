@@ -68,10 +68,10 @@ export const DEFAULT_CATEGORIES: Category[] = [
 ];
 
 export const MODEL_TOKEN_LIMITS = {
-  'SD 1.5': 75,
-  'SDXL': 150,
-  'SD 3.5': 100,
-  'Flux': 125,
+  'SD 1.5': 77,
+  'SDXL': 256,
+  'SD 3.5': 256,
+  'Flux': 512,
 };
 
 export const COMMON_NEGATIVE_PROMPTS = [

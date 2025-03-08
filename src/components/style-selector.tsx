@@ -58,6 +58,14 @@ export function StyleSelector({ onSelect }: StyleSelectorProps) {
 
   const handleStyleChange = (styleId: string) => {
     setSelectedStyle(styleId);
+    
+    // If "none" is selected, clear the style
+    if (styleId === "none") {
+      onSelect("");
+      return;
+    }
+    
+    // Otherwise find and use the selected style
     const selectedStyleObj = styles.find(style => style.id === styleId);
     if (selectedStyleObj) {
       onSelect(selectedStyleObj.prompt);
@@ -97,6 +105,15 @@ export function StyleSelector({ onSelect }: StyleSelectorProps) {
           <SelectValue placeholder="Select a style" />
         </SelectTrigger>
         <SelectContent>
+          {/* Add "None" option at the top */}
+          <SelectItem key="none" value="none">
+            None (Clear style)
+          </SelectItem>
+          
+          {/* Add separator */}
+          <div className="h-px bg-muted my-1"></div>
+          
+          {/* Existing categories and styles */}
           {categories.map((category) => (
             <SelectGroup key={category.id}>
               <SelectLabel>{category.name}</SelectLabel>
@@ -113,7 +130,7 @@ export function StyleSelector({ onSelect }: StyleSelectorProps) {
         </SelectContent>
       </Select>
       
-      {selectedStyle && (
+      {selectedStyle && selectedStyle !== "none" && (
         <div className="pt-1">
           <p className="text-xs text-muted-foreground">
             {styles.find(s => s.id === selectedStyle)?.description}
