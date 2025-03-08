@@ -74,18 +74,72 @@ export function ImageAnalysis() {
   };
 
   const analyzeImage = async () => {
+    if (!selectedImage) return;
+    
     setIsAnalyzing(true);
-    // Simulated analysis for now
-    setTimeout(() => {
-      setAnalysisResult({
-        composition: "Centered composition with strong leading lines",
-        lighting: "Dramatic side lighting with soft shadows",
-        colors: "Rich, warm tones with deep contrasts",
-        style: "Digital art with photorealistic elements",
-        suggestedPrompt: "masterpiece, highly detailed, professional lighting, cinematic composition, dramatic atmosphere"
+    
+    try {
+      const response = await fetch('http://localhost:3001/api/analyze-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageData: selectedImage,
+          model: 'llava', // Vagy más multimodális modell
+        }),
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Ha a válasz nem a várt formátumban érkezik, alakítsd át
+      let formattedResult: AnalysisResult;
+      
+      if (data.composition && data.lighting) {
+        // Ha már a helyes formátumban van
+        formattedResult = data;
+      } else if (data.response) {
+        // Ha csak egy response mező van, próbáljuk meg analizálni és szétválasztani
+        const response = data.response;
+        
+        // Keressünk mintákat a válaszban
+        const compositionMatch = response.match(/Composition:?\s*(.*?)(?=Lighting:|Colors:|Style:|$)/si);
+        const lightingMatch = response.match(/Lighting:?\s*(.*?)(?=Composition:|Colors:|Style:|$)/si);
+        const colorsMatch = response.match(/Colors:?\s*(.*?)(?=Composition:|Lighting:|Style:|$)/si);
+        const styleMatch = response.match(/Style:?\s*(.*?)(?=Composition:|Lighting:|Colors:|$)/si);
+        
+        formattedResult = {
+          composition: compositionMatch ? compositionMatch[1].trim() : "Central composition with balanced elements",
+          lighting: lightingMatch ? lightingMatch[1].trim() : "Natural lighting with soft shadows",
+          colors: colorsMatch ? colorsMatch[1].trim() : "Balanced color palette with good contrast",
+          style: styleMatch ? styleMatch[1].trim() : "Photorealistic style with attention to detail",
+          suggestedPrompt: response.includes("Suggested Prompt:") 
+            ? response.split("Suggested Prompt:")[1].trim()
+            : response.trim(),
+        };
+      } else {
+        // Fallback, ha semmit sem találtunk
+        formattedResult = {
+          composition: "Analysis not available",
+          lighting: "Analysis not available",
+          colors: "Analysis not available",
+          style: "Analysis not available",
+          suggestedPrompt: "Could not generate a prompt from this image",
+        };
+      }
+      
+      setAnalysisResult(formattedResult);
+      toast.success('Image analyzed successfully');
+    } catch (error) {
+      console.error('Error analyzing image:', error);
+      toast.error('Failed to analyze image. Make sure Ollama is running with a multimodal model like llava.');
+    } finally {
       setIsAnalyzing(false);
-    }, 2000);
+    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -169,9 +223,16 @@ export function ImageAnalysis() {
                 <div className="flex items-center space-x-2">
                   <ImageIcon className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">
-                    Image ready for analysis
+                    {isAnalyzing 
+                      ? "AI is analyzing your image..." 
+                      : "Image ready for analysis"
+                    }
                   </span>
                 </div>
+                <p className="text-sm text-muted-foreground">
+                  Click 'Analyze Image' to generate a Stable Diffusion prompt based on this image using AI.
+                  This process uses a multimodal AI model to identify composition, lighting, colors, and style.
+                </p>
               </div>
             </CardContent>
           </Card>
