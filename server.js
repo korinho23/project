@@ -8,7 +8,7 @@ const PORT = 3001;
 
 // Middleware setup
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // Increased limit for large images
+app.use(express.json({ limit: '500mb' })); // Increased limit for large images
 
 // Endpoint for text generation with Ollama
 app.post('/api/generate', async (req, res) => {

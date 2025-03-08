@@ -1,15 +1,15 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Input } from "./ui/input";
+import { Button } from "./ui/button";
+import { ScrollArea } from "./ui/scroll-area";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "./ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -17,9 +17,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogClose,
-} from "@/components/ui/dialog";
+} from "./ui/dialog";
 import { useState, useEffect } from "react";
 import { Search, MoreVertical, Copy, Pencil, Trash, Clock, Edit, X } from "lucide-react";
 import { SavedPrompt, SDModel } from "@/lib/types";
@@ -30,7 +29,7 @@ interface SavedPromptsProps {
   onLoadPrompt?: (promptId: string) => void;
 }
 
-export function SavedPrompts({ onLoadPrompt }: SavedPromptsProps) {
+export function SavedPrompts() {
   const [searchQuery, setSearchQuery] = useState("");
   const [prompts, setPrompts] = useState<SavedPrompt[]>([]);
   const [editingPrompt, setEditingPrompt] = useState<SavedPrompt | null>(null);
@@ -85,10 +84,11 @@ export function SavedPrompts({ onLoadPrompt }: SavedPromptsProps) {
   };
 
   const loadPrompt = (id: string) => {
-    if (onLoadPrompt) {
-      onLoadPrompt(id);
-      toast.success("Prompt loaded successfully!");
-    }
+    // This function is intended to load and update the Prompt Builder UI with the selected prompt
+    // We need to trigger a parent component state update
+    const event = new CustomEvent('loadSavedPrompt', { detail: id });
+    document.dispatchEvent(event);
+    toast.success("Prompt loaded for editing!");
   };
 
   const filteredPrompts = prompts.filter(prompt =>

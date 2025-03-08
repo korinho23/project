@@ -46,6 +46,23 @@ export function PromptBuilder() {
     }
   }, []);
 
+
+  // Add this to the PromptBuilder function, near the other useEffect hooks
+useEffect(() => {
+  const handleLoadSavedPrompt = (event: CustomEvent) => {
+    const promptId = event.detail;
+    loadPrompt(promptId);
+  };
+  
+  // Add event listener with type assertion
+  document.addEventListener('loadSavedPrompt', handleLoadSavedPrompt as EventListener);
+  
+  // Clean up event listener on component unmount
+  return () => {
+    document.removeEventListener('loadSavedPrompt', handleLoadSavedPrompt as EventListener);
+  };
+}, []);
+
   // Ollama modellek lekérése
   useEffect(() => {
     const fetchModels = async () => {
