@@ -12,11 +12,34 @@ interface CategoryCardProps {
   category: Category;
   onToggle: (id: string) => void;
   onContentChange: (id: string, content: string) => void;
-  onGenerateWithAI: () => void;
+  onGenerateWithAI: (categoryId: string, context: string) => void;
   isGenerating: boolean;
+  allCategories: Category[]; // Az összes kategória, hogy figyelembe lehessen venni őket
 }
 
-export function CategoryCard({ category, onToggle, onContentChange, onGenerateWithAI, isGenerating }: CategoryCardProps) {
+export function CategoryCard({ 
+  category, 
+  onToggle, 
+  onContentChange, 
+  onGenerateWithAI, 
+  isGenerating,
+  allCategories 
+}: CategoryCardProps) {
+  // Gyűjtsük össze a többi, már kitöltött kategória tartalmát
+  const getContextFromOtherCategories = () => {
+    const filledCategories = allCategories
+      .filter(cat => cat.id !== category.id && cat.content.trim() !== '')
+      .map(cat => `${cat.name}: ${cat.content}`);
+    
+    return filledCategories.join(", ");
+  };
+
+  // Generate gomb kezelése - figyelembe veszi a többi kategóriát is
+  const handleGenerate = () => {
+    const context = getContextFromOtherCategories();
+    onGenerateWithAI(category.id, context);
+  };
+
   return (
     <Card className="mb-4">
       <CardHeader className="flex flex-row items-center space-x-4 py-2">
@@ -45,7 +68,7 @@ export function CategoryCard({ category, onToggle, onContentChange, onGenerateWi
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={onGenerateWithAI}
+              onClick={handleGenerate}
               disabled={isGenerating}
               className="w-full"
             >

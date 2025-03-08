@@ -1,3 +1,4 @@
+// src/components/saved-prompts.tsx - Javított verzió a befagyás ellen
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -17,17 +18,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogClose,
 } from "./ui/dialog";
 import { useState, useEffect } from "react";
-import { Search, MoreVertical, Copy, Pencil, Trash, Clock, Edit, X } from "lucide-react";
+import { Search, MoreVertical, Copy, Pencil, Trash, Clock, Download, Upload } from "lucide-react";
 import { SavedPrompt, SDModel } from "@/lib/types";
 import { toast } from "sonner";
 import { format } from "date-fns";
-
-interface SavedPromptsProps {
-  onLoadPrompt?: (promptId: string) => void;
-}
 
 export function SavedPrompts() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,17 +31,26 @@ export function SavedPrompts() {
   const [editingPrompt, setEditingPrompt] = useState<SavedPrompt | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deletePromptId, setDeletePromptId] = useState<string | null>(null);
+  const [importedPrompts, setImportedPrompts] = useState<SavedPrompt[]>([]);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
 
   // Load saved prompts from localStorage
-  useEffect(() => {
+  const loadPrompts = () => {
     const savedPromptsData = localStorage.getItem('savedPrompts');
     if (savedPromptsData) {
       try {
-        setPrompts(JSON.parse(savedPromptsData));
+        const parsedPrompts = JSON.parse(savedPromptsData);
+        setPrompts(parsedPrompts);
+        console.log("Loaded prompts:", parsedPrompts.length);
       } catch (e) {
         console.error('Error loading saved prompts:', e);
       }
     }
+  };
+
+  // Load prompts on component mount
+  useEffect(() => {
+    loadPrompts();
   }, []);
 
   const copyToClipboard = (text: string) => {
@@ -54,17 +59,28 @@ export function SavedPrompts() {
   };
 
   const deletePrompt = (id: string) => {
+    // Create a new array without the deleted prompt
     const updatedPrompts = prompts.filter(p => p.id !== id);
+    
+    // Update state and localStorage
     setPrompts(updatedPrompts);
     localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
-    toast.success("Prompt deleted successfully!");
+    
+    // Close dialog and show success message
     setDeletePromptId(null);
+    toast.success("Prompt deleted successfully!");
   };
 
   const editPrompt = (id: string) => {
-    const prompt = prompts.find(p => p.id === id);
-    if (prompt) {
-      setEditingPrompt(prompt);
+    // Find the prompt to edit
+    const promptToEdit = prompts.find(p => p.id === id);
+    
+    if (promptToEdit) {
+      // Create a deep copy of the prompt to avoid reference issues
+      const promptCopy = JSON.parse(JSON.stringify(promptToEdit));
+      
+      // Set the editing prompt and open dialog
+      setEditingPrompt(promptCopy);
       setIsDialogOpen(true);
     }
   };
@@ -72,23 +88,101 @@ export function SavedPrompts() {
   const saveEditedPrompt = () => {
     if (!editingPrompt) return;
 
-    const updatedPrompts = prompts.map(p => 
-      p.id === editingPrompt.id ? editingPrompt : p
-    );
-    
-    setPrompts(updatedPrompts);
-    localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
-    setIsDialogOpen(false);
-    setEditingPrompt(null);
-    toast.success("Prompt updated successfully!");
+    try {
+      // Create a completely new array with the updated prompt
+      const updatedPrompts = prompts.map(p => 
+        p.id === editingPrompt.id ? {...editingPrompt} : {...p}
+      );
+      
+      // Update state and localStorage
+      setPrompts(updatedPrompts);
+      localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
+      
+      // Close dialog and clear editing prompt
+      setIsDialogOpen(false);
+      setEditingPrompt(null);
+      
+      toast.success("Prompt updated successfully!");
+    } catch (error) {
+      console.error("Error saving edited prompt:", error);
+      toast.error("Failed to save changes. Please try again.");
+    }
   };
 
-  const loadPrompt = (id: string) => {
-    // This function is intended to load and update the Prompt Builder UI with the selected prompt
-    // We need to trigger a parent component state update
-    const event = new CustomEvent('loadSavedPrompt', { detail: id });
-    document.dispatchEvent(event);
-    toast.success("Prompt loaded for editing!");
+  // Import funkcióban a JSON kezelése
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const parsed = JSON.parse(content);
+        
+        // Ellenőrizzük, hogy tömb-e vagy egyetlen prompt objektum
+        const promptsToImport = Array.isArray(parsed) ? parsed : [parsed];
+        
+        // Ellenőrizzük, hogy a promptok megfelelő formátumúak-e
+        const validPrompts = promptsToImport.filter(p => 
+          p.id && p.title && p.prompt && p.model
+        );
+        
+        if (validPrompts.length === 0) {
+          toast.error("No valid prompts found in the file");
+          return;
+        }
+        
+        // Minden prompthoz hozzáadjuk a hiányzó mezőket
+        const normalizedPrompts = validPrompts.map(p => ({
+          id: p.id || Date.now().toString(),
+          title: p.title || "Imported Prompt",
+          prompt: p.prompt || "",
+          negativePrompt: p.negativePrompt || "",
+          model: p.model || "SD 1.5",
+          categories: p.categories || {},
+          createdAt: p.createdAt || new Date().toISOString(),
+          updatedAt: p.updatedAt || new Date().toISOString()
+        }));
+        
+        setImportedPrompts(normalizedPrompts);
+        setIsImportDialogOpen(true);
+      } catch (error) {
+        toast.error("Failed to parse JSON file");
+        console.error("JSON parse error:", error);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Import mentése
+  const saveImportedPrompts = () => {
+    const updatedPrompts = [...prompts, ...importedPrompts];
+    setPrompts(updatedPrompts);
+    localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
+    setIsImportDialogOpen(false);
+    setImportedPrompts([]);
+    toast.success(`${importedPrompts.length} prompt(s) imported successfully!`);
+  };
+
+  // Export funkció - minden prompt exportálása JSON fájlként
+  const exportPrompts = () => {
+    if (prompts.length === 0) {
+      toast.error("No prompts to export");
+      return;
+    }
+
+    const dataStr = JSON.stringify(prompts, null, 2);
+    const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
+    
+    const exportFileDefaultName = `sd-prompts-${new Date().toISOString().slice(0, 10)}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+    
+    toast.success(`${prompts.length} prompt(s) exported successfully!`);
   };
 
   const filteredPrompts = prompts.filter(prompt =>
@@ -99,8 +193,35 @@ export function SavedPrompts() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Your Saved Prompts</CardTitle>
+          <div className="flex space-x-2">
+            <label htmlFor="import-prompts">
+              <Button variant="outline" size="sm" asChild>
+                <div className="flex items-center">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import
+                </div>
+              </Button>
+            </label>
+            <input
+              type="file"
+              id="import-prompts"
+              className="hidden"
+              accept=".json"
+              onChange={handleFileUpload}
+            />
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={exportPrompts}
+              disabled={prompts.length === 0}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="relative">
@@ -135,13 +256,6 @@ export function SavedPrompts() {
                           </div>
                         </div>
                         <div className="flex space-x-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => loadPrompt(prompt.id)}
-                          >
-                            Load
-                          </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon">
@@ -186,7 +300,10 @@ export function SavedPrompts() {
       </Card>
 
       {/* Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        setIsDialogOpen(open);
+        if (!open) setEditingPrompt(null);
+      }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Edit Prompt</DialogTitle>
@@ -208,7 +325,7 @@ export function SavedPrompts() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Prompt</label>
                 <textarea 
-                  className="w-full min-h-[100px] p-2 rounded-md border"
+                  className="w-full min-h-[100px] p-2 rounded-md border bg-background text-foreground"
                   value={editingPrompt.prompt}
                   onChange={(e) => setEditingPrompt({...editingPrompt, prompt: e.target.value})}
                 />
@@ -217,7 +334,7 @@ export function SavedPrompts() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Negative Prompt</label>
                 <textarea 
-                  className="w-full min-h-[60px] p-2 rounded-md border"
+                  className="w-full min-h-[60px] p-2 rounded-md border bg-background text-foreground"
                   value={editingPrompt.negativePrompt}
                   onChange={(e) => setEditingPrompt({...editingPrompt, negativePrompt: e.target.value})}
                 />
@@ -226,11 +343,49 @@ export function SavedPrompts() {
           )}
           
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsDialogOpen(false)}>
+            <Button 
+              variant="ghost" 
+              onClick={() => {
+                setIsDialogOpen(false);
+                setEditingPrompt(null);
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={saveEditedPrompt}>
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Confirmation Dialog */}
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Import Prompts</DialogTitle>
+            <DialogDescription>
+              {importedPrompts.length} prompt(s) found in the file. Review and confirm import.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <ScrollArea className="h-[300px]">
+              {importedPrompts.map((prompt, index) => (
+                <div key={prompt.id} className="mb-3 p-3 border rounded-md">
+                  <div className="font-medium">{prompt.title}</div>
+                  <div className="text-sm text-muted-foreground mt-1 line-clamp-2">{prompt.prompt}</div>
+                </div>
+              ))}
+            </ScrollArea>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsImportDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveImportedPrompts}>
+              Import Prompts
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -46,22 +46,21 @@ export function PromptBuilder() {
     }
   }, []);
 
-
-  // Add this to the PromptBuilder function, near the other useEffect hooks
-useEffect(() => {
-  const handleLoadSavedPrompt = (event: CustomEvent) => {
-    const promptId = event.detail;
-    loadPrompt(promptId);
-  };
-  
-  // Add event listener with type assertion
-  document.addEventListener('loadSavedPrompt', handleLoadSavedPrompt as EventListener);
-  
-  // Clean up event listener on component unmount
-  return () => {
-    document.removeEventListener('loadSavedPrompt', handleLoadSavedPrompt as EventListener);
-  };
-}, []);
+  // Add event listener to listen for saved prompt loading
+  useEffect(() => {
+    const handleLoadSavedPrompt = (event: CustomEvent) => {
+      const promptId = event.detail;
+      loadPrompt(promptId);
+    };
+    
+    // Add event listener with type assertion
+    document.addEventListener('loadSavedPrompt', handleLoadSavedPrompt as EventListener);
+    
+    // Clean up event listener on component unmount
+    return () => {
+      document.removeEventListener('loadSavedPrompt', handleLoadSavedPrompt as EventListener);
+    };
+  }, []);
 
   // Ollama modellek lekérése
   useEffect(() => {
@@ -211,16 +210,31 @@ useEffect(() => {
     updateCategoryContent('style', stylePrompt);
   };
 
-  // Ollama segítségével prompt generálása
-  const generateWithAI = async (categoryId: string) => {
+  // Modified AI prompt generation to consider context
+  const generateWithAI = async (categoryId: string, context: string) => {
     const category = categories.find(cat => cat.id === categoryId);
     if (!category) return;
     
     setIsGenerating(true);
     
     try {
-      const prompt = `Generate high-quality content for a Stable Diffusion prompt category: "${category.name}" (${category.description}). 
-        Make it detailed and descriptive in 10-15 words.`;
+      // Az aktuális kategória tartalma
+      const currentContent = category.content.trim();
+      
+      // Prompt összeállítása, figyelembe véve a kontextust és az aktuális kategória tartalmát
+      let promptText = `Generate high-quality content for a Stable Diffusion prompt category: "${category.name}" (${category.description}). `;
+      
+      // Ha van már tartalom a kategóriában, azt is figyelembe vesszük
+      if (currentContent) {
+        promptText += `Improve or expand upon this: "${currentContent}". `;
+      }
+      
+      // Ha van kontextus (más kategóriák tartalma), azt is figyelembe vesszük
+      if (context) {
+        promptText += `Consider this context for other prompt sections: ${context}. `;
+      }
+      
+      promptText += `Make it detailed and descriptive in 10-15 words.`;
       
       const response = await fetch('http://localhost:3001/api/generate', {
         method: 'POST',
@@ -228,7 +242,7 @@ useEffect(() => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt,
+          prompt: promptText,
           model: selectedOllamaModel
         }),
       });
@@ -309,15 +323,16 @@ useEffect(() => {
                 <StyleSelector onSelect={handleStyleSelect} />
               </div>
               
-              {/* Category Cards */}
+              {/* Category Cards with All Categories passed */}
               {categories.map((category) => (
                 <CategoryCard
                   key={category.id}
                   category={category}
                   onToggle={toggleCategory}
                   onContentChange={updateCategoryContent}
-                  onGenerateWithAI={() => generateWithAI(category.id)}
+                  onGenerateWithAI={generateWithAI}
                   isGenerating={isGenerating}
+                  allCategories={categories} // Passing all categories
                 />
               ))}
             </ScrollArea>

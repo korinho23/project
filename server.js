@@ -1,4 +1,4 @@
-// server.js - Simple English-only implementation
+// server.js - Complete implementation
 import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
@@ -7,18 +7,39 @@ const app = express();
 const PORT = 3001;
 
 // Middleware setup
-app.use(cors());
-app.use(express.json({ limit: '500mb' })); // Increased limit for large images
+app.use(cors({
+  origin: '*', // Allow all origins for development
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+app.use(express.json({ limit: '50mb' })); // Increased limit for large images
 
 // Endpoint for text generation with Ollama
 app.post('/api/generate', async (req, res) => {
   try {
-    const { prompt, model } = req.body;
+    const { prompt, model, options = {} } = req.body;
     
-    // Add language instruction to the prompt
-    const englishPrompt = `Please respond strictly in English: ${prompt}`;
+    // Add language instruction and randomization instruction to the prompt
+    const englishPrompt = `Please respond strictly in English and provide a DIFFERENT response each time even if the input is identical: ${prompt}`;
     
     console.log(`Text generation request - Model: ${model || 'llama2'}, Prompt length: ${englishPrompt.length} characters`);
+    
+    // Default options
+    const defaultOptions = {
+      temperature: 0.7, // Increased from 0.2 to 0.7 for more randomness
+      system: "You are an AI that must only respond in English. Never use any other language. Always generate a different response, even if the input prompt is the same as before.",
+      num_predict: 500
+    };
+    
+    // Merge user options with defaults
+    const mergedOptions = { ...defaultOptions, ...options };
+    
+    // Add a random seed to ensure different outputs
+    mergedOptions.seed = Math.floor(Math.random() * 2147483647);
+    
+    // Log options
+    console.log(`Options: temperature=${mergedOptions.temperature}, num_predict=${mergedOptions.num_predict || 'default'}, seed=${mergedOptions.seed}`);
     
     // Ollama API call
     const response = await fetch('http://localhost:11434/api/generate', {
@@ -30,10 +51,7 @@ app.post('/api/generate', async (req, res) => {
         model: model || 'llama2', // Default model if not specified
         prompt: englishPrompt,
         stream: false,
-        options: {
-          temperature: 0.2, // Lower temperature for more predictable outputs
-          system: "You are an AI that must only respond in English. Never use any other language."
-        }
+        options: mergedOptions
       }),
     });
 
@@ -101,8 +119,9 @@ app.post('/api/analyze-image', async (req, res) => {
           images: [base64Image],
           stream: false,
           options: {
-            temperature: 0.2, // Lower temperature for more predictable outputs
-            system: "You are an AI that must only respond in English. Never use any other language."
+            temperature: 0.7, // Increased from 0.2 to 0.7 for more randomness
+            system: "You are an AI that must only respond in English. Never use any other language.",
+            seed: Math.floor(Math.random() * 2147483647) // Add random seed
           }
         }),
       });
