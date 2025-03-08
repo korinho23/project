@@ -81,3 +81,41 @@ export const COMMON_NEGATIVE_PROMPTS = [
   'oversaturated, overexposed',
   'cropped, frame, border',
 ];
+
+export const DEFAULT_THEMES = {
+  light: {
+    name: "Light",
+    bgColor: "bg-gray-50",
+    cardBgColor: "bg-white",
+    textColor: "text-gray-900",
+    borderColor: "border-gray-200"
+  },
+  dark: {
+    name: "Dark",
+    bgColor: "bg-gray-900",
+    cardBgColor: "bg-gray-800",
+    textColor: "text-gray-100",
+    borderColor: "border-gray-700"
+  },
+  cream: {
+    name: "Cream",
+    bgColor: "bg-amber-50",
+    cardBgColor: "bg-white",
+    textColor: "text-amber-900",
+    borderColor: "border-amber-200"
+  },
+  blue: {
+    name: "Blue",
+    bgColor: "bg-blue-50",
+    cardBgColor: "bg-white",
+    textColor: "text-blue-900",
+    borderColor: "border-blue-200"
+  },
+  forest: {
+    name: "Forest",
+    bgColor: "bg-green-900",
+    cardBgColor: "bg-green-800",
+    textColor: "text-green-100",
+    borderColor: "border-green-700"
+  }
+};

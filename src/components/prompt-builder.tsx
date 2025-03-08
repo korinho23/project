@@ -4,14 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
-import { Copy, Save, Wand2 } from "lucide-react";
+import { Copy, Save, Wand2, Edit, Check } from "lucide-react";
 import { toast } from "sonner";
 import { CategoryCard } from "./category-card";
 import { TokenCounter } from "./token-counter";
 import { ModelSelector } from "./model-selector";
+import { StyleSelector } from "./style-selector";
 import { DEFAULT_CATEGORIES, MODEL_TOKEN_LIMITS } from "@/lib/constants";
-import { Category, SDModel, TokenCount } from "@/lib/types";
+import { Category, SDModel, TokenCount, SavedPrompt } from "@/lib/types";
+import { v4 as uuidv4 } from 'uuid';
 
 export function PromptBuilder() {
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
@@ -20,12 +23,28 @@ export function PromptBuilder() {
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>("llama2");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [savedPrompts, setSavedPrompts] = useState<SavedPrompt[]>([]);
+  const [promptTitle, setPromptTitle] = useState("");
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [currentPromptId, setCurrentPromptId] = useState<string | null>(null);
   
   const tokenCount: TokenCount = {
     total: calculateTokens(buildPrompt()),
     limit: MODEL_TOKEN_LIMITS[selectedModel],
     isOverLimit: calculateTokens(buildPrompt()) > MODEL_TOKEN_LIMITS[selectedModel]
   };
+
+  // Load saved prompts from localStorage
+  useEffect(() => {
+    const savedPromptsData = localStorage.getItem('savedPrompts');
+    if (savedPromptsData) {
+      try {
+        setSavedPrompts(JSON.parse(savedPromptsData));
+      } catch (e) {
+        console.error('Error loading saved prompts:', e);
+      }
+    }
+  }, []);
 
   // Ollama modellek lekérése
   useEffect(() => {
@@ -87,8 +106,92 @@ export function PromptBuilder() {
       return;
     }
     
-    // Save prompt logic will be implemented later
-    toast.success("Prompt saved successfully!");
+    if (!promptTitle) {
+      toast.error("Please provide a title for your prompt");
+      return;
+    }
+    
+    const categoriesContent: Record<string, string> = {};
+    categories.forEach(cat => {
+      if (cat.active && cat.content) {
+        categoriesContent[cat.id] = cat.content;
+      }
+    });
+    
+    const timestamp = new Date().toISOString();
+    
+    if (currentPromptId) {
+      // Update existing prompt
+      const updatedPrompts = savedPrompts.map(p => 
+        p.id === currentPromptId ? {
+          ...p,
+          title: promptTitle,
+          prompt,
+          negativePrompt,
+          model: selectedModel,
+          categories: categoriesContent,
+          updatedAt: timestamp
+        } : p
+      );
+      
+      setSavedPrompts(updatedPrompts);
+      localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
+      toast.success("Prompt updated successfully!");
+    } else {
+      // Create new prompt
+      const newPrompt: SavedPrompt = {
+        id: uuidv4(),
+        title: promptTitle,
+        prompt,
+        negativePrompt,
+        model: selectedModel,
+        categories: categoriesContent,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+      
+      const updatedPrompts = [...savedPrompts, newPrompt];
+      setSavedPrompts(updatedPrompts);
+      localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
+      toast.success("Prompt saved successfully!");
+    }
+    
+    setCurrentPromptId(null);
+    setPromptTitle("");
+    setIsEditingTitle(false);
+  };
+
+  const loadPrompt = (promptId: string) => {
+    const prompt = savedPrompts.find(p => p.id === promptId);
+    if (!prompt) return;
+    
+    // Reset categories
+    const newCategories = DEFAULT_CATEGORIES.map(cat => {
+      const savedContent = prompt.categories[cat.id] || '';
+      return {
+        ...cat,
+        content: savedContent,
+        active: !!savedContent
+      };
+    });
+    
+    setCategories(newCategories);
+    setNegativePrompt(prompt.negativePrompt);
+    setSelectedModel(prompt.model);
+    setPromptTitle(prompt.title);
+    setCurrentPromptId(prompt.id);
+  };
+  
+  const clearPrompt = () => {
+    setCategories(DEFAULT_CATEGORIES);
+    setNegativePrompt("");
+    setPromptTitle("");
+    setCurrentPromptId(null);
+  };
+
+  // Handle style selection from StyleSelector
+  const handleStyleSelect = (stylePrompt: string) => {
+    updateCategoryContent('style', stylePrompt);
   };
 
   // Ollama segítségével prompt generálása
@@ -184,6 +287,12 @@ export function PromptBuilder() {
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[600px] pr-4">
+              {/* Style Selector */}
+              <div className="mb-4 border-b pb-4">
+                <StyleSelector onSelect={handleStyleSelect} />
+              </div>
+              
+              {/* Category Cards */}
               {categories.map((category) => (
                 <CategoryCard
                   key={category.id}
@@ -202,7 +311,38 @@ export function PromptBuilder() {
       <div className="space-y-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Final Prompt</CardTitle>
+            <div className="flex-1">
+              {isEditingTitle ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={promptTitle}
+                    onChange={(e) => setPromptTitle(e.target.value)}
+                    placeholder="Enter prompt title"
+                    className="max-w-xs"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsEditingTitle(false)}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <CardTitle>
+                    {promptTitle ? promptTitle : "Final Prompt"}
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsEditingTitle(true)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
             <div className="flex gap-2">
               <Button
                 variant="outline"

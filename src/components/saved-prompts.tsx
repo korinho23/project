@@ -10,31 +10,44 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useState } from "react";
-import { Search, MoreVertical, Copy, Pencil, Trash, Clock } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { useState, useEffect } from "react";
+import { Search, MoreVertical, Copy, Pencil, Trash, Clock, Edit, X } from "lucide-react";
 import { SavedPrompt, SDModel } from "@/lib/types";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
-export function SavedPrompts() {
+interface SavedPromptsProps {
+  onLoadPrompt?: (promptId: string) => void;
+}
+
+export function SavedPrompts({ onLoadPrompt }: SavedPromptsProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [prompts, setPrompts] = useState<SavedPrompt[]>([
-    {
-      id: "1",
-      title: "Fantasy Landscape",
-      prompt: "majestic mountain range, ethereal fog, mystical forest, dramatic lighting, fantasy atmosphere, highly detailed, professional photography, 8k",
-      negativePrompt: "blurry, bad quality, low resolution",
-      model: "SDXL",
-      categories: {
-        subject: "mountain range",
-        style: "fantasy, ethereal",
-        lighting: "dramatic lighting",
-        quality: "highly detailed, 8k",
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ]);
+  const [prompts, setPrompts] = useState<SavedPrompt[]>([]);
+  const [editingPrompt, setEditingPrompt] = useState<SavedPrompt | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [deletePromptId, setDeletePromptId] = useState<string | null>(null);
+
+  // Load saved prompts from localStorage
+  useEffect(() => {
+    const savedPromptsData = localStorage.getItem('savedPrompts');
+    if (savedPromptsData) {
+      try {
+        setPrompts(JSON.parse(savedPromptsData));
+      } catch (e) {
+        console.error('Error loading saved prompts:', e);
+      }
+    }
+  }, []);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -42,8 +55,40 @@ export function SavedPrompts() {
   };
 
   const deletePrompt = (id: string) => {
-    setPrompts(prompts.filter(p => p.id !== id));
+    const updatedPrompts = prompts.filter(p => p.id !== id);
+    setPrompts(updatedPrompts);
+    localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
     toast.success("Prompt deleted successfully!");
+    setDeletePromptId(null);
+  };
+
+  const editPrompt = (id: string) => {
+    const prompt = prompts.find(p => p.id === id);
+    if (prompt) {
+      setEditingPrompt(prompt);
+      setIsDialogOpen(true);
+    }
+  };
+
+  const saveEditedPrompt = () => {
+    if (!editingPrompt) return;
+
+    const updatedPrompts = prompts.map(p => 
+      p.id === editingPrompt.id ? editingPrompt : p
+    );
+    
+    setPrompts(updatedPrompts);
+    localStorage.setItem('savedPrompts', JSON.stringify(updatedPrompts));
+    setIsDialogOpen(false);
+    setEditingPrompt(null);
+    toast.success("Prompt updated successfully!");
+  };
+
+  const loadPrompt = (id: string) => {
+    if (onLoadPrompt) {
+      onLoadPrompt(id);
+      toast.success("Prompt loaded successfully!");
+    }
   };
 
   const filteredPrompts = prompts.filter(prompt =>
@@ -75,7 +120,7 @@ export function SavedPrompts() {
                   <Card key={prompt.id} className="bg-muted/50">
                     <CardContent className="pt-6">
                       <div className="flex items-start justify-between">
-                        <div className="space-y-1">
+                        <div className="space-y-1 max-w-[80%]">
                           <h3 className="font-semibold">{prompt.title}</h3>
                           <p className="text-sm text-muted-foreground line-clamp-2">
                             {prompt.prompt}
@@ -89,32 +134,43 @@ export function SavedPrompts() {
                             <span>{prompt.model}</span>
                           </div>
                         </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => copyToClipboard(prompt.prompt)}
-                            >
-                              <Copy className="mr-2 h-4 w-4" />
-                              Copy Prompt
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => deletePrompt(prompt.id)}
-                            >
-                              <Trash className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <div className="flex space-x-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => loadPrompt(prompt.id)}
+                          >
+                            Load
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => copyToClipboard(prompt.prompt)}
+                              >
+                                <Copy className="mr-2 h-4 w-4" />
+                                Copy Prompt
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => editPrompt(prompt.id)}
+                              >
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => setDeletePromptId(prompt.id)}
+                              >
+                                <Trash className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -128,6 +184,81 @@ export function SavedPrompts() {
           </ScrollArea>
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Prompt</DialogTitle>
+            <DialogDescription>
+              Make changes to your saved prompt.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editingPrompt && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Title</label>
+                <Input 
+                  value={editingPrompt.title}
+                  onChange={(e) => setEditingPrompt({...editingPrompt, title: e.target.value})}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Prompt</label>
+                <textarea 
+                  className="w-full min-h-[100px] p-2 rounded-md border"
+                  value={editingPrompt.prompt}
+                  onChange={(e) => setEditingPrompt({...editingPrompt, prompt: e.target.value})}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Negative Prompt</label>
+                <textarea 
+                  className="w-full min-h-[60px] p-2 rounded-md border"
+                  value={editingPrompt.negativePrompt}
+                  onChange={(e) => setEditingPrompt({...editingPrompt, negativePrompt: e.target.value})}
+                />
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveEditedPrompt}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deletePromptId} onOpenChange={(open) => !open && setDeletePromptId(null)}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this prompt? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <DialogFooter className="sm:justify-between">
+            <Button variant="ghost" onClick={() => setDeletePromptId(null)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => deletePromptId && deletePrompt(deletePromptId)}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

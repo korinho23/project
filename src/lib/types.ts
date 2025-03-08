@@ -25,3 +25,45 @@ export type TokenCount = {
   limit: number;
   isOverLimit: boolean;
 };
+
+export type ArtStyle = {
+  id: string;
+  name: string;
+  description: string;
+  prompt: string;
+  category: string;
+};
+
+export type StyleCategory = {
+  id: string;
+  name: string;
+};
+
+export type Styles = {
+  styles: ArtStyle[];
+  categories: StyleCategory[];
+};
+
+export type AnalysisResult = {
+  composition: string;
+  lighting: string;
+  colors: string;
+  style: string;
+  suggestedPrompt: string;
+};
+
+export type ImageWithAnalysis = {
+  id: string;
+  imageData: string;
+  analysis: AnalysisResult | null;
+  isAnalyzing: boolean;
+  error?: string;
+};
+
+export type Theme = {
+  name: string;
+  bgColor: string;
+  cardBgColor: string;
+  textColor: string;
+  borderColor: string;
+};
